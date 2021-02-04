@@ -1,26 +1,19 @@
 #include <iostream>
+#include <Windows.h>
 #include "TetrisHandler.h"
 
 using namespace std;
 
 const string BLOCK = "бс";
 const string BLOCK_OUTER = "в╠";
-const int Horizontal = 22;
-const int Vertical = 13;
-const int LeftMargin = 15;
-const int TopMargin = 4;
+const string EMPTY = "  ";
+const int rowBegin = 5;
+const int rowEnd = 25;
+const int colBegin = 9;
+const int colEnd = 22;
 
-enum en_shape
-{
-    EN_SQUARE,
-    EN_LINE,
-    EN_MOUNTAIN,
-    EN_N,
-    EN_N_R,
-    EN_Z,
-    EN_Z_R,
-    EN_SHAPE_NUM,
-};
+const int rowStd = 4;
+const int colStd = 16;
 
 CTetrisHandler::CTetrisHandler()
 {
@@ -34,22 +27,119 @@ CTetrisHandler::~CTetrisHandler()
 void CTetrisHandler::run()
 {
     initBlocks();
-    showBlocks();
+    drawWall();
+    createToy(EN_SQUARE);
+    while ( true )
+    {
+        showBlocks();
+        const auto& downRes = downToy(EN_SQUARE);
+        if ( !downRes )
+        {
+            addFix();
+            createToy(EN_SQUARE);
+        }
+
+            
+        Sleep(300);
+    }
 }
 
 void CTetrisHandler::initBlocks()
 {
-    for ( auto& a : Blocks )
+    for ( auto& sero : Blocks )
     {
-        for ( auto& b : a )
+        for ( auto& garo : sero )
         {
-            b = BLOCK_OUTER;
+            garo = EMPTY;
         }
     }
 }
 
+void CTetrisHandler::drawWall()
+{
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = 0; row < rowSize; ++row )
+    {
+        if ( row < rowBegin || row > rowEnd )
+            continue;
+
+        auto& rowD = Blocks[row];
+        const int colSize = static_cast<int>(rowD.size());
+        for ( int col = 0; col < colSize; ++col )
+        {
+            auto& colD = rowD[col];
+
+            if ( row == rowEnd && col >= colBegin && col <= colEnd)
+                colD = BLOCK_OUTER;
+
+            if ( col == colBegin || col == colEnd )
+                colD = BLOCK_OUTER;
+        }
+    }
+}
+
+void CTetrisHandler::createToy(int shape)
+{
+    switch ( shape )
+    {
+    case EN_SQUARE:
+        Blocks[rowStd][colStd] = BLOCK;
+        Blocks[rowStd][colStd-1] = BLOCK;
+        Blocks[rowStd+1][colStd] = BLOCK;
+        Blocks[rowStd+1][colStd-1] = BLOCK;
+        break;
+    default:
+        break;
+    }
+}
+
+bool CTetrisHandler::downToy(int shape)
+{
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd; row > 0; --row )
+    {
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colBegin; col < colEnd; ++col )
+        {
+            //if ( /*Blocks[row+1][col] == BLOCK || */Blocks[row+1][col] == BLOCK_OUTER )
+            //    break;
+
+            if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
+            {
+                if ( row == rowEnd -1 || isFixed(row+1, col) )
+                    return false;
+
+                Blocks[row][col] = EMPTY;
+                Blocks[row+1][col] = BLOCK;
+            }
+        }
+    }
+
+    return true;
+}
+
+void CTetrisHandler::addFix()
+{
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd; row > 0; --row )
+    {
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colBegin; col < colEnd; ++col )
+        {
+            if ( Blocks[row][col] == BLOCK )
+                Fixed.push_back(make_pair(row, col));
+        }
+    }
+}
+
+bool CTetrisHandler::isFixed(int row, int col)
+{
+    return std::count(Fixed.begin(), Fixed.end(), make_pair(row, col)) > 0;
+}
+
 void CTetrisHandler::showBlocks()
 {
+    system("cls");
     for ( const auto& a : Blocks )
     {
         for ( const auto& b : a )
@@ -59,46 +149,4 @@ void CTetrisHandler::showBlocks()
 
         cout << endl;
     }
-}
-
-void AdjustLeftMargin()
-{
-    for ( int nIdx = 0; nIdx < LeftMargin; ++nIdx )
-    {
-        cout << "  ";
-    }
-}
-
-void CreateOuterLine()
-{
-    // OUTER BLOCK
-    for ( int hIdx = 0; hIdx < Horizontal; ++hIdx )
-    {
-        //AdjustLeftMargin();
-
-        if ( hIdx == Horizontal - 1 )
-        {
-            for ( int vIdx = 0; vIdx < Vertical; ++vIdx )
-            {
-                cout << BLOCK_OUTER;
-            }   
-        }
-        else
-        {
-            for ( int vIdx = 0; vIdx < Vertical; ++vIdx )
-            {
-                if ( vIdx == 0 || vIdx == Vertical - 1 )
-                    cout << BLOCK_OUTER;
-                else
-                    cout << "  ";
-            }   
-        }
-
-        cout << endl;
-    }
-}
-
-void CreateTetriminos()
-{
-
 }
