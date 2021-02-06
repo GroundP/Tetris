@@ -1,5 +1,6 @@
 #include <iostream>
 #include <Windows.h>
+#include <conio.h>
 #include "TetrisHandler.h"
 
 using namespace std;
@@ -15,8 +16,11 @@ const int colEnd = 22;
 const int rowStd = 4;
 const int colStd = 16;
 
+
 CTetrisHandler::CTetrisHandler()
 {
+    InputThread = thread(&CTetrisHandler::InputDir, this);
+    InputThread.detach();
 }
 
 CTetrisHandler::~CTetrisHandler()
@@ -29,10 +33,11 @@ void CTetrisHandler::run()
     initBlocks();
     drawWall();
     createToy(EN_SQUARE);
+
     while ( true )
     {
         showBlocks();
-        const auto& downRes = downToy(EN_SQUARE);
+        const auto& downRes = downToy();
         if ( !downRes )
         {
             addFix();
@@ -42,6 +47,13 @@ void CTetrisHandler::run()
             
         Sleep(300);
     }
+
+    while ( true )
+    {
+        int nIuput = _getch();
+        cout << "문자" << (char)nIuput << ", 아스키코드: " << nIuput << endl;
+    }
+
 }
 
 void CTetrisHandler::initBlocks()
@@ -93,7 +105,7 @@ void CTetrisHandler::createToy(int shape)
     }
 }
 
-bool CTetrisHandler::downToy(int shape)
+bool CTetrisHandler::downToy()
 {
     const int rowSize = static_cast<int>(Blocks.size());
     for ( int row = rowEnd; row > 0; --row )
@@ -130,6 +142,106 @@ void CTetrisHandler::addFix()
                 Fixed.push_back(make_pair(row, col));
         }
     }
+}
+
+bool CTetrisHandler::InputDir()
+{
+    while ( true )
+    {
+        int nIuput = _getch();
+        enDir dir = EN_NOTHING;
+
+        if ( nIuput == 224 ) // 방향키 입력
+        {
+            nIuput = _getch();
+            switch ( nIuput )
+            {
+            case 75:
+                dir = EN_LEFT; break;
+            case 77:
+                dir = EN_RIGHT; break;
+            case 72:
+                dir = EN_UP; break;
+            case 80:
+                dir = EN_DOWN; break;
+            default:
+                return false;
+            }
+        }
+        else
+            return false;
+        
+
+        MoveToy(dir);
+    }
+
+    return true;
+}
+
+bool CTetrisHandler::MoveToy(enDir dir)
+{
+    switch ( dir )
+    {
+    case EN_LEFT: leftToy(); break;
+    case EN_RIGHT: rightToy(); break;
+    case EN_UP: break;
+    case EN_DOWN: downToy(); break;
+    case EN_NOTHING: break;
+    default:
+        return false;
+    }
+
+    
+    return true;
+}
+
+bool CTetrisHandler::leftToy()
+{
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd; row > 0; --row )
+    {
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colBegin; col < colEnd; ++col )
+        {
+            if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
+            {
+                if ( col == colBegin +1 || isFixed(row, col-1))
+                    return false;
+
+                Blocks[row][col-1] = BLOCK;
+                Blocks[row][col] = EMPTY;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool CTetrisHandler::rightToy()
+{
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd; row > 0; --row )
+    {
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colEnd; col > colBegin; --col )
+        {
+            if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
+            {
+                if ( col == colEnd -1 || isFixed(row, col+1))
+                    return false;
+
+                Blocks[row][col+1] = BLOCK;
+                Blocks[row][col] = EMPTY;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool CTetrisHandler::rotateToy(int shape)
+{
+    return true;
 }
 
 bool CTetrisHandler::isFixed(int row, int col)
