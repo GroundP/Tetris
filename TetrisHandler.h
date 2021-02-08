@@ -51,7 +51,7 @@ private:
     bool leftToy(); // 블록 우로 이동
     bool rightToy(); // 블록 좌로 이동
     bool rotateToy(); // 블록 회전
-
+    bool getOuterPoint(enDir dir, int& point); // 블록 내리기/좌/우 이동시 가장 마지막 포인트 반환
 
     void showBlocks();
 
