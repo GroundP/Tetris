@@ -19,6 +19,10 @@ const int colStd = 16;
 
 CTetrisHandler::CTetrisHandler()
 {
+    for ( auto& rowFix : Fixed )
+        for ( auto& colFix : rowFix )
+            colFix = false;
+
     InputThread = thread(&CTetrisHandler::InputDir, this);
     InputThread.detach();
 }
@@ -36,11 +40,10 @@ void CTetrisHandler::run()
 
     while ( true )
     {
-        //showBlocks();
-        const auto& downRes = downToy();
-        if ( !downRes )
+        if ( !downToy() )
         {
             addFix();
+            RemoveFix();
             createToy();
         }
 
@@ -169,13 +172,13 @@ void CTetrisHandler::createToy()
 void CTetrisHandler::addFix()
 {
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd; row > 0; --row )
+    for ( int row = rowEnd-1; row > 0; --row )
     {
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colBegin; col < colEnd; ++col )
+        for ( int col = colBegin+1; col < colEnd; ++col )
         {
             if ( Blocks[row][col] == BLOCK )
-                Fixed.push_back(make_pair(row, col));
+                Fixed[row][col] = true;
         }
     }
 }
@@ -253,11 +256,14 @@ bool CTetrisHandler::downToy()
     if ( lowestRow + 1 == rowEnd )
         return false;
 
+    vector<pair<int, int>> aEmptys;
+    vector<pair<int, int>> aBlocks;
+
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd; row > 0; --row )
+    for ( int row = rowEnd-1; row > 0; --row )
     {
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colBegin; col < colEnd; ++col )
+        for ( int col = colBegin+1; col < colEnd; ++col )
         {
             //if ( /*Blocks[row+1][col] == BLOCK || */Blocks[row+1][col] == BLOCK_OUTER )
             //    break;
@@ -267,14 +273,24 @@ bool CTetrisHandler::downToy()
                 if ( row == rowEnd -1 || isFixed(row+1, col) )
                     return false;
 
-                Blocks[row][col] = EMPTY;
-                Blocks[row+1][col] = BLOCK;
-
-                print(row, col);
-                print(row+1, col);
+                aEmptys.push_back(make_pair(row, col));
+                aBlocks.push_back(make_pair(row+1, col));
             }
         }
     }
+
+    for ( const auto a : aEmptys )
+    {
+        Blocks[a.first][a.second] = EMPTY;
+        print(a.first, a.second);
+    }
+
+    for ( const auto a : aBlocks )
+    {
+        Blocks[a.first][a.second] = BLOCK;
+        print(a.first, a.second);
+    }
+
 
     return true;
 }
@@ -286,24 +302,36 @@ bool CTetrisHandler::leftToy()
     if ( outerCol - 1 == colBegin )
         return false;
 
+    vector<pair<int, int>> aEmptys;
+    vector<pair<int, int>> aBlocks;
+
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd; row > 0; --row )
+    for ( int row = rowEnd-1; row > 0; --row )
     {
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colBegin; col < colEnd; ++col )
+        for ( int col = colBegin+1; col < colEnd; ++col )
         {
             if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
             {
                 if ( col == colBegin +1 || isFixed(row, col-1))
                     return false;
 
-                Blocks[row][col-1] = BLOCK;
-                Blocks[row][col] = EMPTY;
-
-                print(row, col-1);
-                print(row, col);
+                aBlocks.push_back(make_pair(row, col-1));
+                aEmptys.push_back(make_pair(row, col));
             }
         }
+    }
+
+    for ( const auto a : aEmptys )
+    {
+        Blocks[a.first][a.second] = EMPTY;
+        print(a.first, a.second);
+    }
+
+    for ( const auto a : aBlocks )
+    {
+        Blocks[a.first][a.second] = BLOCK;
+        print(a.first, a.second);
     }
 
     return true;
@@ -316,24 +344,36 @@ bool CTetrisHandler::rightToy()
     if ( outerCol + 1 == colEnd )
         return false;
 
+    vector<pair<int, int>> aEmptys;
+    vector<pair<int, int>> aBlocks;
+
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd; row > 0; --row )
+    for ( int row = rowEnd-1; row > 0; --row )
     {
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colEnd; col > colBegin; --col )
+        for ( int col = colEnd-1; col > colBegin; --col )
         {
             if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
             {
                 if ( col == colEnd -1 || isFixed(row, col+1))
                     return false;
 
-                Blocks[row][col+1] = BLOCK;
-                Blocks[row][col] = EMPTY;
-
-                print(row, col+1);
-                print(row, col);
+                aBlocks.push_back(make_pair(row, col+1));
+                aEmptys.push_back(make_pair(row, col));
             }
         }
+    }
+
+    for ( const auto a : aEmptys )
+    {
+        Blocks[a.first][a.second] = EMPTY;
+        print(a.first, a.second);
+    }
+
+    for ( const auto a : aBlocks )
+    {
+        Blocks[a.first][a.second] = BLOCK;
+        print(a.first, a.second);
     }
 
     return true;
@@ -560,10 +600,10 @@ bool CTetrisHandler::getOuterPoint(enDir dir, int& point)
     int RightPoint = colBegin;
     int DownPoint = rowBegin;
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd; row > 0; --row )
+    for ( int row = rowEnd-1; row > 0; --row )
     {
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colEnd; col > colBegin; --col )
+        for ( int col = colEnd-1; col > colBegin; --col )
         {
             if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
             {
@@ -587,9 +627,77 @@ bool CTetrisHandler::getOuterPoint(enDir dir, int& point)
     }
 }
 
+bool CTetrisHandler::RemoveFix()
+{
+ /*   const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd-1; row > 0; --row )
+    {
+        bool bFull = true;
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colBegin; col < colEnd; ++col )
+        {
+            if ( Fixed[row][col] == false )
+            {
+                bFull = false;
+                break;
+            }
+        }
+
+        if ( bFull )
+        {
+            for ( int row = row; row > 0; --row )
+            {
+                for ( int col = colBegin; col < colEnd; ++col )
+                    Fixed[row][col] = Fixed[row-1][col];
+            }
+        }
+    }*/
+
+    int combo = 0;
+    while ( true )
+    {
+        bool bFull = true;
+        for ( int col = colBegin+1; col < colEnd; ++col )
+        {
+            if ( Fixed[rowEnd-1][col] == false )
+            {
+                bFull = false;
+                break;
+            }
+        }
+
+        if ( bFull )
+        {
+            combo++;
+
+            for ( int row = rowEnd-1; row > 0; --row )
+            {
+                for ( int col = colBegin+1; col < colEnd; ++col )
+                {
+                    Fixed[row][col] = Fixed[row-1][col];
+                    Blocks[row][col] = Blocks[row-1][col];
+                }
+            }
+        }
+        else
+            break;
+    }
+
+    if ( combo > 0 )
+    {
+        for ( int row = rowEnd-1; row > 0; --row )
+            for ( int col = colBegin+1; col < colEnd; ++col )
+                    print(row,col);
+    }
+    
+
+
+    return true;
+}
+
 bool CTetrisHandler::isFixed(int row, int col)
 {
-    return std::count(Fixed.begin(), Fixed.end(), make_pair(row, col)) > 0;
+    return Fixed[row][col];
 }
 
 bool CTetrisHandler::print(int row, int col)
@@ -601,18 +709,4 @@ bool CTetrisHandler::print(int row, int col)
 
     cout << Blocks[row][col];
     return true;
-}
-
-void CTetrisHandler::showBlocks()
-{
-    system("cls");
-    for ( const auto& a : Blocks )
-    {
-        for ( const auto& b : a )
-        {
-            printf("%s", b.c_str());
-        }
-
-        cout << endl;
-    }
 }

@@ -43,6 +43,7 @@ private:
     void initBlocks(); // 블록 초기화
     void drawWall(); // 벽 만들기
     void createToy(); // 첫 블록 만들기
+
     void addFix(); // 이미 내려진 블록 FIx
     bool InputDir(); // 방향키 입력받기
     bool MoveToy(enDir dir); // 방향키에 따른 이동
@@ -53,14 +54,15 @@ private:
     bool rotateToy(); // 블록 회전
     bool getOuterPoint(enDir dir, int& point); // 블록 내리기/좌/우 이동시 가장 마지막 포인트 반환
 
-    void showBlocks();
+    bool RemoveFix();
 
     bool isFixed(int row, int col);
     bool print(int row, int col);
 
     std::array<std::array<std::string, totalSize>, totalSize> Blocks;
     std::map<en_shape, std::pair<int, int>> Standard;
-    std::vector<std::pair<int, int>> Fixed;
+    //std::vector<std::pair<int, int>> Fixed;
+    std::array<std::array<bool, totalSize>, totalSize> Fixed;
     en_shape m_shape; // 현재 블록의 모양
 
     std::mutex mx;
