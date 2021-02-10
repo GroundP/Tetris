@@ -19,6 +19,12 @@ const int colStd = 16;
 
 CTetrisHandler::CTetrisHandler()
 {
+    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_CURSOR_INFO Cursor;
+    Cursor.bVisible = 0;
+    Cursor.dwSize = 1;
+    SetConsoleCursorInfo(consoleHandle, &Cursor);
+
     for ( auto& rowFix : Fixed )
         for ( auto& colFix : rowFix )
             colFix = false;
@@ -46,7 +52,6 @@ void CTetrisHandler::run()
             RemoveFix();
             createToy();
         }
-
             
         Sleep(300);
     }
@@ -207,6 +212,10 @@ bool CTetrisHandler::InputDir()
                 continue;
             }
         }
+        else if ( nIuput == VK_SPACE )
+        {
+            straight();
+        }
         else
             continue;
         
@@ -249,11 +258,13 @@ bool CTetrisHandler::MoveToy(enDir dir)
 
 bool CTetrisHandler::downToy()
 {
+    lock_guard<mutex> lock(mx);
+
     m_stdPoint.first++;
 
-    int lowestRow = 0;
-    getOuterPoint(EN_DOWN, lowestRow);
-    if ( lowestRow + 1 == rowEnd )
+    pair<int, int> lowest;
+    getOuterPoint(EN_DOWN, lowest);
+    if ( lowest.first + 1 == rowEnd )
         return false;
 
     vector<pair<int, int>> aEmptys;
@@ -290,16 +301,17 @@ bool CTetrisHandler::downToy()
         Blocks[a.first][a.second] = BLOCK;
         print(a.first, a.second);
     }
-
-
+    
     return true;
 }
 
 bool CTetrisHandler::leftToy()
 {
-    int outerCol = 0;
-    getOuterPoint(EN_LEFT, outerCol);
-    if ( outerCol - 1 == colBegin )
+    lock_guard<mutex> lock(mx);
+
+    pair<int, int> outer;
+    getOuterPoint(EN_LEFT, outer);
+    if ( outer.second - 1 == colBegin )
         return false;
 
     vector<pair<int, int>> aEmptys;
@@ -339,9 +351,11 @@ bool CTetrisHandler::leftToy()
 
 bool CTetrisHandler::rightToy()
 {
-    int outerCol = 0;
-    getOuterPoint(EN_RIGHT, outerCol);
-    if ( outerCol + 1 == colEnd )
+    lock_guard<mutex> lock(mx);
+
+    pair<int, int> outer;
+    getOuterPoint(EN_RIGHT, outer);
+    if ( outer.second + 1 == colEnd )
         return false;
 
     vector<pair<int, int>> aEmptys;
@@ -379,6 +393,65 @@ bool CTetrisHandler::rightToy()
     return true;
 }
 
+bool CTetrisHandler::straight()
+{
+    while ( true )
+    {
+        if ( !downToy() )
+        {
+            break;
+        }
+    }
+
+    return true;
+
+    /*m_stdPoint.first++;
+
+    pair<int, int> lowestPoint;
+    getOuterPoint(EN_DOWN, lowestPoint);
+    if ( lowestPoint.first + 1 == rowEnd )
+        return false;
+
+    vector<pair<int, int>> aEmptys;
+    vector<pair<int, int>> aBlocks;
+
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd-1; row > 0; --row )
+    {
+        const int colSize = static_cast<int>(Blocks[row].size());
+        for ( int col = colBegin+1; col < colEnd; ++col )
+        {
+            if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
+            {
+                if ( row == rowEnd -1 || isFixed(row+1, col) )
+                    return false;
+
+                aEmptys.push_back(make_pair(row, col));
+                aBlocks.push_back(make_pair(row+1, col));
+            }
+
+            if ( t )
+
+        }
+    }
+
+    for ( const auto a : aEmptys )
+    {
+        Blocks[a.first][a.second] = EMPTY;
+        print(a.first, a.second);
+    }
+
+    for ( const auto a : aBlocks )
+    {
+        Blocks[a.first][a.second] = BLOCK;
+        print(a.first, a.second);
+    }*/
+
+
+    return true;
+}
+
+
 bool CTetrisHandler::rotateToy()
 {
     const int curRow = m_stdPoint.first;
@@ -388,11 +461,11 @@ bool CTetrisHandler::rotateToy()
     case EN_SQUARE:
         break;
     case EN_LINE:
-        if ( Blocks[curRow][curCol + 1] == BLOCK ) // 가로인 경우
+        if ( Blocks[curRow][curCol+1] == BLOCK ) // 가로인 경우
         {
-            Blocks[curRow][curCol + 1] = EMPTY;
-            Blocks[curRow][curCol + 2] = EMPTY;
-            Blocks[curRow][curCol - 1] = EMPTY;
+            Blocks[curRow][curCol+1] = EMPTY;
+            Blocks[curRow][curCol+2] = EMPTY;
+            Blocks[curRow][curCol-1] = EMPTY;
 
             Blocks[curRow-2][curCol] = BLOCK;
             Blocks[curRow-1][curCol] = BLOCK;
@@ -400,9 +473,15 @@ bool CTetrisHandler::rotateToy()
         }
         else // 세로인 경우
         {
-            Blocks[curRow][curCol + 1] = BLOCK;
-            Blocks[curRow][curCol + 2] = BLOCK;
-            Blocks[curRow][curCol - 1] = BLOCK;
+            if ( curCol + 2 >= colEnd )
+                return false;
+
+            if ( curCol - 1 <= colBegin )
+                return false;
+
+            Blocks[curRow][curCol+1] = BLOCK;
+            Blocks[curRow][curCol+2] = BLOCK;
+            Blocks[curRow][curCol-1] = BLOCK;
 
             Blocks[curRow-2][curCol] = EMPTY;
             Blocks[curRow-1][curCol] = EMPTY;
@@ -424,15 +503,18 @@ bool CTetrisHandler::rotateToy()
             print(curRow, curCol-1);
             print(curRow+1, curCol);
         }
-        else if ( Blocks[curRow - 1][curCol] == EMPTY ) // 아래를 향하는 경우
+        else if ( Blocks[curRow-1][curCol] == EMPTY ) // 아래를 향하는 경우
         {
             Blocks[curRow][curCol+1] = EMPTY;
             Blocks[curRow-1][curCol] = BLOCK;
             print(curRow, curCol+1);
             print(curRow-1, curCol);
         }
-        else if ( Blocks[curRow][curCol + 1] == EMPTY ) // 왼쪽을 향하는 경우
+        else if ( Blocks[curRow][curCol+1] == EMPTY ) // 왼쪽을 향하는 경우
         {
+            if ( curCol + 1 >= colEnd )
+                return false;
+
             Blocks[curRow+1][curCol] = EMPTY;
             Blocks[curRow][curCol+1] = BLOCK;
             print(curRow+1, curCol);
@@ -440,6 +522,9 @@ bool CTetrisHandler::rotateToy()
         }
         else if ( Blocks[curRow][curCol-1] == EMPTY ) // 오른쪽을 향하는 경우
         {
+            if ( curCol - 1 <= colBegin )
+                return false;
+
             Blocks[curRow-1][curCol] = EMPTY;
             Blocks[curRow][curCol-1] = BLOCK;
             print(curRow-1, curCol);
@@ -460,6 +545,9 @@ bool CTetrisHandler::rotateToy()
         }
         else if ( Blocks[curRow+1][curCol] == BLOCK && Blocks[curRow+2][curCol] == BLOCK ) // 아래로 긴 모양
         {
+            if ( curCol - 2 <= colBegin )
+                return false;
+
             Blocks[curRow+2][curCol] = EMPTY;
             Blocks[curRow][curCol+1] = EMPTY;
             Blocks[curRow][curCol-1] = BLOCK;
@@ -469,7 +557,7 @@ bool CTetrisHandler::rotateToy()
             print(curRow, curCol-1);
             print(curRow, curCol-2);
         }
-        else if ( Blocks[curRow][curCol - 1] == BLOCK && Blocks[curRow][curCol - 2] == BLOCK ) // 왼쪽으로 긴 모양
+        else if ( Blocks[curRow][curCol-1] == BLOCK && Blocks[curRow][curCol-2] == BLOCK ) // 왼쪽으로 긴 모양
         {
             Blocks[curRow][curCol-2] = EMPTY;
             Blocks[curRow+1][curCol] = EMPTY;
@@ -482,6 +570,9 @@ bool CTetrisHandler::rotateToy()
         }
         else if ( Blocks[curRow-1][curCol] == BLOCK && Blocks[curRow-2][curCol] == BLOCK ) // 위로 긴 모양
         {
+            if ( curCol + 2 >= colEnd )
+                return false;
+
             Blocks[curRow-2][curCol] = EMPTY;
             Blocks[curRow][curCol-1] = EMPTY;
             Blocks[curRow][curCol+1] = BLOCK;
@@ -495,6 +586,9 @@ bool CTetrisHandler::rotateToy()
     case EN_BODY_R:
         if ( Blocks[curRow][curCol-1] == BLOCK && Blocks[curRow][curCol-2] == BLOCK ) // 왼쪽으로 긴 모양
         {
+            if ( curCol + 1 >= colEnd )
+                return false;
+
             Blocks[curRow][curCol-1] = EMPTY;
             Blocks[curRow][curCol-2] = EMPTY;
             Blocks[curRow-2][curCol] = BLOCK;
@@ -506,6 +600,9 @@ bool CTetrisHandler::rotateToy()
         }
         else if ( Blocks[curRow-1][curCol] == BLOCK && Blocks[curRow-2][curCol] == BLOCK ) // 위로 긴 모양
         {
+            if ( curCol + 2 >= colEnd )
+                return false;
+
             Blocks[curRow-2][curCol] = EMPTY;
             Blocks[curRow-1][curCol] = EMPTY;
             Blocks[curRow+1][curCol] = BLOCK;
@@ -515,8 +612,11 @@ bool CTetrisHandler::rotateToy()
             print(curRow+1, curCol);
             print(curRow, curCol+2);
         }
-        else if ( Blocks[curRow][curCol + 1] == BLOCK && Blocks[curRow][curCol + 2] == BLOCK ) // 오른쪽으로 긴 모양
+        else if ( Blocks[curRow][curCol+1] == BLOCK && Blocks[curRow][curCol+2] == BLOCK ) // 오른쪽으로 긴 모양
         {
+            if ( curCol - 1 <= colBegin )
+                return false;
+
             Blocks[curRow][curCol+2] = EMPTY;
             Blocks[curRow][curCol+1] = EMPTY;
             Blocks[curRow][curCol-1] = BLOCK;
@@ -528,6 +628,9 @@ bool CTetrisHandler::rotateToy()
         }
         else if ( Blocks[curRow+1][curCol] == BLOCK && Blocks[curRow+2][curCol] == BLOCK ) // 아래로 긴 모양
         {
+            if ( curCol - 2 <= colBegin )
+                return false;
+
             Blocks[curRow+2][curCol] = EMPTY;
             Blocks[curRow+1][curCol] = EMPTY;
             Blocks[curRow][curCol-2] = BLOCK;
@@ -539,12 +642,15 @@ bool CTetrisHandler::rotateToy()
         }
         break;
     case EN_Z:
-        if ( Blocks[curRow - 1][curCol] == BLOCK )
+        if ( Blocks[curRow-1][curCol] == BLOCK )
         {
-            Blocks[curRow - 1][curCol] = EMPTY;
-            Blocks[curRow + 1][curCol+1] = EMPTY;
-            Blocks[curRow + 1][curCol] = BLOCK;
-            Blocks[curRow + 1][curCol-1] = BLOCK;
+            if ( curCol - 1 <= colBegin )
+                return false;
+
+            Blocks[curRow-1][curCol] = EMPTY;
+            Blocks[curRow+1][curCol+1] = EMPTY;
+            Blocks[curRow+1][curCol] = BLOCK;
+            Blocks[curRow+1][curCol-1] = BLOCK;
             print(curRow-1, curCol);
             print(curRow+1, curCol+1);
             print(curRow+1, curCol);
@@ -552,10 +658,13 @@ bool CTetrisHandler::rotateToy()
         }
         else
         {
-            Blocks[curRow + 1][curCol] = EMPTY;
-            Blocks[curRow + 1][curCol-1] = EMPTY;
-            Blocks[curRow + 1][curCol+1] = BLOCK;
-            Blocks[curRow - 1][curCol] = BLOCK;
+            if ( curCol + 1 >= colEnd )
+                return false;
+
+            Blocks[curRow+1][curCol] = EMPTY;
+            Blocks[curRow+1][curCol-1] = EMPTY;
+            Blocks[curRow+1][curCol+1] = BLOCK;
+            Blocks[curRow-1][curCol] = BLOCK;
             print(curRow+1, curCol);
             print(curRow+1, curCol-1);
             print(curRow+1, curCol+1);
@@ -564,12 +673,15 @@ bool CTetrisHandler::rotateToy()
         }
         break;
     case EN_Z_R:
-        if ( Blocks[curRow - 1][curCol] == BLOCK )
+        if ( Blocks[curRow-1][curCol] == BLOCK )
         {
-            Blocks[curRow - 1][curCol] = EMPTY;
-            Blocks[curRow + 1][curCol-1] = EMPTY;
-            Blocks[curRow + 1][curCol] = BLOCK;
-            Blocks[curRow + 1][curCol+1] = BLOCK;
+            if ( curCol + 1 >= colEnd )
+                return false;
+
+            Blocks[curRow-1][curCol] = EMPTY;
+            Blocks[curRow+1][curCol-1] = EMPTY;
+            Blocks[curRow+1][curCol] = BLOCK;
+            Blocks[curRow+1][curCol+1] = BLOCK;
             print(curRow-1, curCol);
             print(curRow+1, curCol-1);
             print(curRow+1, curCol);
@@ -577,10 +689,13 @@ bool CTetrisHandler::rotateToy()
         }
         else
         {
-            Blocks[curRow + 1][curCol] = EMPTY;
-            Blocks[curRow + 1][curCol+1] = EMPTY;
-            Blocks[curRow - 1][curCol] = BLOCK;
-            Blocks[curRow + 1][curCol-1] = BLOCK;
+            if ( curCol - 1 <= colBegin )
+                return false;
+
+            Blocks[curRow+1][curCol] = EMPTY;
+            Blocks[curRow+1][curCol+1] = EMPTY;
+            Blocks[curRow-1][curCol] = BLOCK;
+            Blocks[curRow+1][curCol-1] = BLOCK;
             print(curRow+1, curCol);
             print(curRow+1, curCol+1);
             print(curRow-1, curCol);
@@ -594,11 +709,11 @@ bool CTetrisHandler::rotateToy()
     return true;
 }
 
-bool CTetrisHandler::getOuterPoint(enDir dir, int& point)
+bool CTetrisHandler::getOuterPoint(enDir dir, pair<int, int>& point)
 {
-    int LeftPoint = colEnd;
-    int RightPoint = colBegin;
-    int DownPoint = rowBegin;
+    pair<int, int> LeftPoint = {0, colEnd};
+    pair<int, int> RightPoint = {0, colBegin};
+    pair<int, int> DownPoint = {rowBegin, 0};
     const int rowSize = static_cast<int>(Blocks.size());
     for ( int row = rowEnd-1; row > 0; --row )
     {
@@ -607,9 +722,14 @@ bool CTetrisHandler::getOuterPoint(enDir dir, int& point)
         {
             if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
             {
-                LeftPoint = min(LeftPoint, col);
-                RightPoint = max(RightPoint, col);
-                DownPoint = max(DownPoint, row);
+                if ( col < LeftPoint.second )
+                    LeftPoint = make_pair(row, col);
+
+                if ( col > RightPoint.second )
+                    RightPoint = make_pair(row, col);
+
+                if ( row > DownPoint.first )
+                    DownPoint = make_pair(row, col);
             }
         }
     }
@@ -629,12 +749,13 @@ bool CTetrisHandler::getOuterPoint(enDir dir, int& point)
 
 bool CTetrisHandler::RemoveFix()
 {
- /*   const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd-1; row > 0; --row )
+    int combo = 0;
+    const int rowSize = static_cast<int>(Blocks.size());
+    for ( int row = rowEnd-1; row > rowBegin; --row )
     {
         bool bFull = true;
         const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colBegin; col < colEnd; ++col )
+        for ( int col = colBegin+1; col < colEnd; ++col )
         {
             if ( Fixed[row][col] == false )
             {
@@ -645,16 +766,27 @@ bool CTetrisHandler::RemoveFix()
 
         if ( bFull )
         {
-            for ( int row = row; row > 0; --row )
+            combo++;
+
+            for ( int rowIdx = row; rowIdx > rowBegin; --rowIdx )
             {
-                for ( int col = colBegin; col < colEnd; ++col )
-                    Fixed[row][col] = Fixed[row-1][col];
+                for ( int col = colBegin + 1; col < colEnd; ++col )
+                {
+                    Fixed[rowIdx][col] = Fixed[rowIdx-1][col];
+                    Blocks[rowIdx][col] = Blocks[rowIdx-1][col];
+                }
             }
         }
-    }*/
+    }
 
-    int combo = 0;
-    while ( true )
+    if ( combo > 0 )
+    {
+        for ( int row = rowEnd-1; row > rowBegin; --row )
+            for ( int col = colBegin+1; col < colEnd; ++col )
+                print(row,col);
+    }
+
+   /* while ( true )
     {
         bool bFull = true;
         for ( int col = colBegin+1; col < colEnd; ++col )
@@ -688,9 +820,8 @@ bool CTetrisHandler::RemoveFix()
         for ( int row = rowEnd-1; row > 0; --row )
             for ( int col = colBegin+1; col < colEnd; ++col )
                     print(row,col);
-    }
+    }*/
     
-
 
     return true;
 }

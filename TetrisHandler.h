@@ -51,8 +51,9 @@ private:
     bool downToy(); // 블록 내리기
     bool leftToy(); // 블록 우로 이동
     bool rightToy(); // 블록 좌로 이동
+    bool straight(); // 블록 한방에 끝까지 내리기
     bool rotateToy(); // 블록 회전
-    bool getOuterPoint(enDir dir, int& point); // 블록 내리기/좌/우 이동시 가장 마지막 포인트 반환
+    bool getOuterPoint(enDir dir, std::pair<int, int>& point); // 블록 내리기/좌/우 이동시 가장 마지막 포인트 반환
 
     bool RemoveFix();
 
