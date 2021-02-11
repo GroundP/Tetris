@@ -16,8 +16,15 @@ const int colEnd = 22;
 const int rowStd = 4;
 const int colStd = 16;
 
+void setCursorPoint(int row, int col)
+{
+    COORD pos;
+    pos.X = 2*col;
+    pos.Y = row;
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
+};
 
-CTetrisHandler::CTetrisHandler()
+CTetrisHandler::CTetrisHandler() : bStraightFlag(false)
 {
     HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_CURSOR_INFO Cursor;
@@ -42,15 +49,19 @@ void CTetrisHandler::run()
 {
     initBlocks();
     drawWall();
-    createToy();
+    printTODO(rowBegin+5, colEnd+4);
+    m_Shape = static_cast<en_shape>(getRandomBlock());
+    createToy(true);
 
     while ( true )
     {
-        if ( !downToy() )
+        if ( !downToy() || bStraightFlag )
         {
             addFix();
             RemoveFix();
             createToy();
+            drawNextBlock();
+            bStraightFlag = false;
         }
             
         Sleep(300);
@@ -77,6 +88,7 @@ void CTetrisHandler::initBlocks()
 
 void CTetrisHandler::drawWall()
 {
+    // Main wall
     const int rowSize = static_cast<int>(Blocks.size());
     for ( int row = 0; row < rowSize; ++row )
     {
@@ -102,19 +114,29 @@ void CTetrisHandler::drawWall()
             }
         }
     }
+
+    // Next Block Wall
+    const auto b = "--";
+    const auto c = "｜";
+    setCursorPoint(rowBegin, colEnd+3);   printf("%s%s%s%s%s%s%s", b,b,b,b,b,b,b);
+    setCursorPoint(rowBegin+1, colEnd+2); printf("%s", c);
+    setCursorPoint(rowBegin+2, colEnd+2); printf("%s", c);
+    setCursorPoint(rowBegin+3, colEnd+2); printf("%s", c);
+    setCursorPoint(rowBegin+4, colEnd+3); printf("%s%s%s%s%s%s%s", b,b,b,b,b,b,b);
+    setCursorPoint(rowBegin+1, colEnd+10); printf("%s", c);
+    setCursorPoint(rowBegin+2, colEnd+10); printf("%s", c);
+    setCursorPoint(rowBegin+3, colEnd+10); printf("%s", c);
 }
 
-void CTetrisHandler::createToy()
+void CTetrisHandler::createToy(bool bFirst)
 {
-    srand((unsigned int)time(NULL));
+    lock_guard<mutex> lock(mx);
 
-
-    const int random = rand();
-    const int num = random % EN_SHAPE_NUM;
-    m_shape = static_cast<en_shape>(num);
+    if ( !bFirst )
+        m_Shape = m_NextShape;
 
     array<pair<int, int>,4> arr;
-    switch ( num )
+    switch ( m_Shape )
     {
     case EN_SQUARE:
         arr[0] = make_pair(rowStd, colStd);
@@ -176,6 +198,8 @@ void CTetrisHandler::createToy()
 
 void CTetrisHandler::addFix()
 {
+    lock_guard<mutex> lock(mx);
+
     const int rowSize = static_cast<int>(Blocks.size());
     for ( int row = rowEnd-1; row > 0; --row )
     {
@@ -399,54 +423,10 @@ bool CTetrisHandler::straight()
     {
         if ( !downToy() )
         {
+            bStraightFlag = true;
             break;
         }
     }
-
-    return true;
-
-    /*m_stdPoint.first++;
-
-    pair<int, int> lowestPoint;
-    getOuterPoint(EN_DOWN, lowestPoint);
-    if ( lowestPoint.first + 1 == rowEnd )
-        return false;
-
-    vector<pair<int, int>> aEmptys;
-    vector<pair<int, int>> aBlocks;
-
-    const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd-1; row > 0; --row )
-    {
-        const int colSize = static_cast<int>(Blocks[row].size());
-        for ( int col = colBegin+1; col < colEnd; ++col )
-        {
-            if ( !isFixed(row, col) && Blocks[row][col] == BLOCK )
-            {
-                if ( row == rowEnd -1 || isFixed(row+1, col) )
-                    return false;
-
-                aEmptys.push_back(make_pair(row, col));
-                aBlocks.push_back(make_pair(row+1, col));
-            }
-
-            if ( t )
-
-        }
-    }
-
-    for ( const auto a : aEmptys )
-    {
-        Blocks[a.first][a.second] = EMPTY;
-        print(a.first, a.second);
-    }
-
-    for ( const auto a : aBlocks )
-    {
-        Blocks[a.first][a.second] = BLOCK;
-        print(a.first, a.second);
-    }*/
-
 
     return true;
 }
@@ -454,9 +434,11 @@ bool CTetrisHandler::straight()
 
 bool CTetrisHandler::rotateToy()
 {
+    lock_guard<mutex> lock(mx);
+
     const int curRow = m_stdPoint.first;
     const int curCol = m_stdPoint.second;
-    switch ( m_shape )
+    switch ( m_Shape )
     {
     case EN_SQUARE:
         break;
@@ -747,11 +729,100 @@ bool CTetrisHandler::getOuterPoint(enDir dir, pair<int, int>& point)
     }
 }
 
+int CTetrisHandler::getRandomBlock()
+{
+    srand((unsigned int)time(NULL));
+
+    const int random = rand();
+    return random % EN_SHAPE_NUM;
+}
+
+void CTetrisHandler::drawNextBlock()
+{
+    lock_guard<mutex> lock(mx);
+
+    const int rowPoint = rowBegin + 2; 
+    const int colPoint = colEnd + 5; 
+
+    for ( int col = -2; col <= 2; ++col )
+    {
+        Blocks[rowPoint-1][colPoint+col] = EMPTY;
+        Blocks[rowPoint][colPoint+col] = EMPTY;
+        Blocks[rowPoint+1][colPoint+col] = EMPTY;
+
+        print(rowPoint-1, colPoint+col);
+        print(rowPoint, colPoint+col);
+        print(rowPoint+1, colPoint+col);
+    }
+
+    array<pair<int, int>,4> arr;
+    m_NextShape = static_cast<en_shape>(getRandomBlock());
+    switch ( m_NextShape )
+    {
+    case EN_SQUARE:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint, colPoint+1);
+        arr[2] = make_pair(rowPoint-1, colPoint);
+        arr[3] = make_pair(rowPoint-1, colPoint+1);
+        break;
+    case EN_LINE:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint, colPoint-1);
+        arr[2] = make_pair(rowPoint, colPoint+1);
+        arr[3] = make_pair(rowPoint, colPoint+2);
+        break;
+    case EN_MOUNTAIN:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint-1, colPoint);
+        arr[2] = make_pair(rowPoint, colPoint+1);
+        arr[3] = make_pair(rowPoint, colPoint-1);
+        break;
+    case EN_BODY:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint-1, colPoint);
+        arr[2] = make_pair(rowPoint, colPoint+1);
+        arr[3] = make_pair(rowPoint, colPoint+2);
+        break;
+    case EN_BODY_R:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint-1, colPoint);
+        arr[2] = make_pair(rowPoint, colPoint-1);
+        arr[3] = make_pair(rowPoint, colPoint-2);
+        break;
+    case EN_Z:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint-1, colPoint);
+        arr[2] = make_pair(rowPoint, colPoint+1);
+        arr[3] = make_pair(rowPoint+1, colPoint+1);
+        break;
+    case EN_Z_R:
+        arr[0] = make_pair(rowPoint, colPoint);
+        arr[1] = make_pair(rowPoint-1, colPoint);
+        arr[2] = make_pair(rowPoint, colPoint-1);
+        arr[3] = make_pair(rowPoint+1, colPoint-1);
+        break;
+    default:
+        break;
+    }
+ 
+    Blocks[arr[0].first][arr[0].second] = BLOCK;
+    Blocks[arr[1].first][arr[1].second] = BLOCK;
+    Blocks[arr[2].first][arr[2].second] = BLOCK;
+    Blocks[arr[3].first][arr[3].second] = BLOCK;
+
+    print(arr[0].first, arr[0].second);
+    print(arr[1].first, arr[1].second);
+    print(arr[2].first, arr[2].second);
+    print(arr[3].first, arr[3].second);
+}
+
 bool CTetrisHandler::RemoveFix()
 {
+    lock_guard<mutex> lock(mx);
+
     int combo = 0;
     const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = rowEnd-1; row > rowBegin; --row )
+    for ( int row = rowEnd-1; row > rowBegin; )
     {
         bool bFull = true;
         const int colSize = static_cast<int>(Blocks[row].size());
@@ -774,6 +845,41 @@ bool CTetrisHandler::RemoveFix()
                 {
                     Fixed[rowIdx][col] = Fixed[rowIdx-1][col];
                     Blocks[rowIdx][col] = Blocks[rowIdx-1][col];
+                }
+            }
+        }
+        else
+            --row;
+    }
+
+    if ( combo >= 2 )
+    {
+        for ( int i = 1; i < combo; ++i )
+        {
+            const int rowSize = static_cast<int>(Blocks.size());
+            for ( int row = rowEnd-1; row > rowBegin; --row )
+            {
+                bool bFull = true;
+                const int colSize = static_cast<int>(Blocks[row].size());
+                for ( int col = colBegin+1; col < colEnd; ++col )
+                {
+                    if ( Fixed[row][col] == false )
+                    {
+                        bFull = false;
+                        break;
+                    }
+                }
+
+                if ( bFull )
+                {
+                    for ( int rowIdx = row; rowIdx > rowBegin; --rowIdx )
+                    {
+                        for ( int col = colBegin + 1; col < colEnd; ++col )
+                        {
+                            Fixed[rowIdx][col] = Fixed[rowIdx-1][col];
+                            Blocks[rowIdx][col] = Blocks[rowIdx-1][col];
+                        }
+                    }
                 }
             }
         }
@@ -833,11 +939,29 @@ bool CTetrisHandler::isFixed(int row, int col)
 
 bool CTetrisHandler::print(int row, int col)
 {
-    COORD pos;
-    pos.X = 2*col;
-    pos.Y = row;
-    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
-
+    setCursorPoint(row, col);
     cout << Blocks[row][col];
     return true;
+}
+
+void CTetrisHandler::printTODO(int row, int col)
+{
+    setCursorPoint(row++, col);
+    cout << "### TODO ###";
+    setCursorPoint(row++, col);
+    cout << "* 다음 블록 표시";
+    setCursorPoint(row++, col);
+    cout << "* 점수 표시";
+    setCursorPoint(row++, col);
+    cout << "* 일정 시간마다 속도 Up";
+    setCursorPoint(row++, col);
+    cout << "* ESC 눌러서 나가기";
+    setCursorPoint(row++, col);
+    cout << "* Game Over Line 및 조건";
+
+    setCursorPoint(row++, col);
+    setCursorPoint(row++, col);
+    setCursorPoint(row++, col);
+    cout << "// Developed by GroundP.";
+
 }

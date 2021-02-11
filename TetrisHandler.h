@@ -42,7 +42,7 @@ public:
 private:
     void initBlocks(); // 블록 초기화
     void drawWall(); // 벽 만들기
-    void createToy(); // 첫 블록 만들기
+    void createToy(bool bFirst = false); // 첫 블록 만들기
 
     void addFix(); // 이미 내려진 블록 FIx
     bool InputDir(); // 방향키 입력받기
@@ -55,21 +55,27 @@ private:
     bool rotateToy(); // 블록 회전
     bool getOuterPoint(enDir dir, std::pair<int, int>& point); // 블록 내리기/좌/우 이동시 가장 마지막 포인트 반환
 
+    int getRandomBlock();
+    void drawNextBlock();
+
     bool RemoveFix();
 
     bool isFixed(int row, int col);
     bool print(int row, int col);
+    void printTODO(int row, int col);
 
     std::array<std::array<std::string, totalSize>, totalSize> Blocks;
     std::map<en_shape, std::pair<int, int>> Standard;
     //std::vector<std::pair<int, int>> Fixed;
     std::array<std::array<bool, totalSize>, totalSize> Fixed;
-    en_shape m_shape; // 현재 블록의 모양
+    en_shape m_Shape; // 현재 블록
+    en_shape m_NextShape; // 다음 블록
 
     std::mutex mx;
     std::thread InputThread;
     std::condition_variable cond;
 
+    bool bStraightFlag;
     std::pair<int, int> m_stdPoint; // 현재 블록의 기준점
 };
 
