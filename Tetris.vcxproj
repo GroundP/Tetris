@@ -151,12 +151,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Reference.cpp" />
     <ClCompile Include="TetrisHandler.cpp" />
     <ClCompile Include="Tetris.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Reference.h" />
     <ClInclude Include="TetrisHandler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
