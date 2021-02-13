@@ -40,6 +40,8 @@ public:
     void run();
 
 private:
+    void runUnit();
+    void init(); // 설정 초기화
     void initBlocks(); // 블록 초기화
     void drawWall(); // 벽 만들기
     void createToy(bool bFirst = false); // 첫 블록 만들기
@@ -59,10 +61,17 @@ private:
     void drawNextBlock();
 
     bool RemoveFix();
+    bool checkGameOver();
 
     bool isFixed(int row, int col);
     bool print(int row, int col);
     void printTODO(int row, int col);
+    void printBestScore();
+    void printScore();
+    void printLevel(bool bLevelUp = true);
+    void printDeadLine();
+    void printGameOver();
+    void saveScore();
 
     std::array<std::array<std::string, totalSize>, totalSize> Blocks;
     std::map<en_shape, std::pair<int, int>> Standard;
@@ -77,6 +86,13 @@ private:
 
     bool bStraightFlag;
     std::pair<int, int> m_stdPoint; // 현재 블록의 기준점
+
+    int score;
+    int level;
+    int bestScore;
+
+    bool isNewRecord;
+    bool isGameOver;
 };
 
 

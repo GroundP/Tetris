@@ -24,18 +24,8 @@ void setCursorPoint(int row, int col)
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
 };
 
-CTetrisHandler::CTetrisHandler() : bStraightFlag(false)
+CTetrisHandler::CTetrisHandler()
 {
-    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_CURSOR_INFO Cursor;
-    Cursor.bVisible = 0;
-    Cursor.dwSize = 1;
-    SetConsoleCursorInfo(consoleHandle, &Cursor);
-
-    for ( auto& rowFix : Fixed )
-        for ( auto& colFix : rowFix )
-            colFix = false;
-
     InputThread = thread(&CTetrisHandler::InputDir, this);
     InputThread.detach();
 }
@@ -47,14 +37,46 @@ CTetrisHandler::~CTetrisHandler()
 
 void CTetrisHandler::run()
 {
-    initBlocks();
-    drawWall();
-    printTODO(rowBegin+5, colEnd+4);
-    m_Shape = static_cast<en_shape>(getRandomBlock());
-    createToy(true);
-
     while ( true )
     {
+        runUnit();
+        printGameOver();
+        while ( true )
+        {
+            if ( _kbhit() )
+            {
+                int key = _getch();
+                if ( key == VK_SPACE )
+                {
+                    break;
+                }
+            }
+            int a = 0;
+        }
+
+        system("cls");
+        isGameOver = false;
+    }
+}
+
+void CTetrisHandler::runUnit()
+{
+    init();
+    initBlocks();
+    drawWall();
+    printTODO(rowBegin+10, colEnd+3);
+    m_Shape = static_cast<en_shape>(getRandomBlock());
+    printBestScore();
+    printScore();
+    printLevel(false);
+    createToy(true);
+
+    int levelPoint = 0;
+    int speed = 400;
+    while ( true )
+    {
+        printDeadLine();
+
         if ( !downToy() || bStraightFlag )
         {
             addFix();
@@ -62,17 +84,60 @@ void CTetrisHandler::run()
             createToy();
             drawNextBlock();
             bStraightFlag = false;
+
+            score += (level + 4);
+            printScore();
+
+            levelPoint++;
+            if ( levelPoint % 15 == 0 )
+            {
+                level++;
+                if ( speed >= 150 )
+                    speed -= 50;
+
+                printLevel();
+            }
+
+            if ( checkGameOver() )
+            {
+                saveScore();
+                break;
+            }
         }
-            
-        Sleep(300);
-    }
 
-    while ( true )
+        Sleep(speed);
+    }
+}
+
+void CTetrisHandler::init()
+{
+    bStraightFlag = false;
+    score = 0;
+    level = 1;
+    bestScore = 0; 
+    isNewRecord = false;
+    isGameOver = false;
+
+    FILE *file = fopen("score.txt", "rt");
+    if ( file == 0 )
     {
-        int nIuput = _getch();
-        cout << "문자" << (char)nIuput << ", 아스키코드: " << nIuput << endl;
+        bestScore = 0;
+    }
+    else
+    {
+        fscanf(file, "%d", &bestScore);
+        fclose(file);
     }
 
+    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_CURSOR_INFO Cursor;
+    Cursor.bVisible = 0;
+    Cursor.dwSize = 1;
+    SetConsoleCursorInfo(consoleHandle, &Cursor);
+
+    for ( auto& rowFix : Fixed )
+        for ( auto& colFix : rowFix )
+            colFix = false;
 }
 
 void CTetrisHandler::initBlocks()
@@ -88,20 +153,18 @@ void CTetrisHandler::initBlocks()
 
 void CTetrisHandler::drawWall()
 {
-    // Main wall
-    const int rowSize = static_cast<int>(Blocks.size());
-    for ( int row = 0; row < rowSize; ++row )
-    {
-        if ( row < rowBegin || row > rowEnd )
-            continue;
+    lock_guard<mutex> lock(mx);
 
+    // Main wall
+    for ( int row = rowBegin; row <= rowEnd; ++row )
+    {
         auto& rowD = Blocks[row];
         const int colSize = static_cast<int>(rowD.size());
-        for ( int col = 0; col < colSize; ++col )
+        for ( int col = colBegin; col <= colEnd; ++col )
         {
             auto& colD = rowD[col];
 
-            if ( row == rowEnd && col >= colBegin && col <= colEnd )
+            if ( row == rowEnd )
             {
                 colD = BLOCK_OUTER;
                 print(row, col);
@@ -116,16 +179,18 @@ void CTetrisHandler::drawWall()
     }
 
     // Next Block Wall
-    const auto b = "--";
-    const auto c = "｜";
-    setCursorPoint(rowBegin, colEnd+3);   printf("%s%s%s%s%s%s%s", b,b,b,b,b,b,b);
+    const auto b = "─";
+    const auto c = "¡";
+    setCursorPoint(rowBegin, colEnd+2);   printf(" ─────────── ");
     setCursorPoint(rowBegin+1, colEnd+2); printf("%s", c);
     setCursorPoint(rowBegin+2, colEnd+2); printf("%s", c);
     setCursorPoint(rowBegin+3, colEnd+2); printf("%s", c);
-    setCursorPoint(rowBegin+4, colEnd+3); printf("%s%s%s%s%s%s%s", b,b,b,b,b,b,b);
-    setCursorPoint(rowBegin+1, colEnd+10); printf("%s", c);
-    setCursorPoint(rowBegin+2, colEnd+10); printf("%s", c);
-    setCursorPoint(rowBegin+3, colEnd+10); printf("%s", c);
+    setCursorPoint(rowBegin+4, colEnd+2); printf("%s", c);
+    setCursorPoint(rowBegin+5, colEnd+2); printf(" ─────────── ");
+    setCursorPoint(rowBegin+1, colEnd+8); printf("%s", c);
+    setCursorPoint(rowBegin+2, colEnd+8); printf("%s", c);
+    setCursorPoint(rowBegin+3, colEnd+8); printf("%s", c);
+    setCursorPoint(rowBegin+4, colEnd+8); printf("%s", c);
 }
 
 void CTetrisHandler::createToy(bool bFirst)
@@ -216,35 +281,43 @@ bool CTetrisHandler::InputDir()
 {
     while ( true )
     {
-        int nIuput = _getch();
-        enDir dir = EN_NOTHING;
-
-        if ( nIuput == 224 ) // 방향키 입력
+        if ( !isGameOver && _kbhit() )
         {
-            nIuput = _getch();
-            switch ( nIuput )
+            int nIuput = _getch();
+            enDir dir = EN_NOTHING;
+
+            if ( nIuput == 224 ) // 방향키 입력
             {
-            case 75:
-                dir = EN_LEFT; break;
-            case 77:
-                dir = EN_RIGHT; break;
-            case 72:
-                dir = EN_UP; break;
-            case 80:
-                dir = EN_DOWN; break;
-            default:
-                continue;
+                nIuput = _getch();
+                switch ( nIuput )
+                {
+                case 75:
+                    dir = EN_LEFT; break;
+                case 77:
+                    dir = EN_RIGHT; break;
+                case 72:
+                    dir = EN_UP; break;
+                case 80:
+                    dir = EN_DOWN; break;
+                default:
+                    continue;
+                }
             }
-        }
-        else if ( nIuput == VK_SPACE )
-        {
-            straight();
-        }
-        else
-            continue;
-        
+            else if ( nIuput == VK_SPACE )
+            {
+                straight();
+            }
+            else if ( nIuput == VK_ESCAPE )
+            {
+                system("cls");
+                exit(0);
+            }
+            else
+                continue;
 
-        MoveToy(dir);
+
+            MoveToy(dir);
+        }
     }
 
     return true;
@@ -434,6 +507,9 @@ bool CTetrisHandler::straight()
 
 bool CTetrisHandler::rotateToy()
 {
+    if ( bStraightFlag )
+        return false;
+
     lock_guard<mutex> lock(mx);
 
     const int curRow = m_stdPoint.first;
@@ -741,8 +817,8 @@ void CTetrisHandler::drawNextBlock()
 {
     lock_guard<mutex> lock(mx);
 
-    const int rowPoint = rowBegin + 2; 
-    const int colPoint = colEnd + 5; 
+    int rowPoint = rowBegin + 3; 
+    int colPoint = colEnd + 5; 
 
     for ( int col = -2; col <= 2; ++col )
     {
@@ -778,12 +854,14 @@ void CTetrisHandler::drawNextBlock()
         arr[3] = make_pair(rowPoint, colPoint-1);
         break;
     case EN_BODY:
+        colPoint--;
         arr[0] = make_pair(rowPoint, colPoint);
         arr[1] = make_pair(rowPoint-1, colPoint);
         arr[2] = make_pair(rowPoint, colPoint+1);
         arr[3] = make_pair(rowPoint, colPoint+2);
         break;
     case EN_BODY_R:
+        colPoint++;
         arr[0] = make_pair(rowPoint, colPoint);
         arr[1] = make_pair(rowPoint-1, colPoint);
         arr[2] = make_pair(rowPoint, colPoint-1);
@@ -796,6 +874,7 @@ void CTetrisHandler::drawNextBlock()
         arr[3] = make_pair(rowPoint+1, colPoint+1);
         break;
     case EN_Z_R:
+        colPoint++;
         arr[0] = make_pair(rowPoint, colPoint);
         arr[1] = make_pair(rowPoint-1, colPoint);
         arr[2] = make_pair(rowPoint, colPoint-1);
@@ -887,49 +966,39 @@ bool CTetrisHandler::RemoveFix()
 
     if ( combo > 0 )
     {
+        switch ( combo )
+        {
+        case 1 : score += 100; break;
+        case 2 : score += 250; break;
+        case 3 : score += 400; break;
+        case 4 : score += 550; break;
+        default:
+            break;
+        }
+
+        printScore();
+
         for ( int row = rowEnd-1; row > rowBegin; --row )
             for ( int col = colBegin+1; col < colEnd; ++col )
                 print(row,col);
     }
 
-   /* while ( true )
-    {
-        bool bFull = true;
-        for ( int col = colBegin+1; col < colEnd; ++col )
-        {
-            if ( Fixed[rowEnd-1][col] == false )
-            {
-                bFull = false;
-                break;
-            }
-        }
-
-        if ( bFull )
-        {
-            combo++;
-
-            for ( int row = rowEnd-1; row > 0; --row )
-            {
-                for ( int col = colBegin+1; col < colEnd; ++col )
-                {
-                    Fixed[row][col] = Fixed[row-1][col];
-                    Blocks[row][col] = Blocks[row-1][col];
-                }
-            }
-        }
-        else
-            break;
-    }
-
-    if ( combo > 0 )
-    {
-        for ( int row = rowEnd-1; row > 0; --row )
-            for ( int col = colBegin+1; col < colEnd; ++col )
-                    print(row,col);
-    }*/
-    
 
     return true;
+}
+
+bool CTetrisHandler::checkGameOver()
+{
+    for ( int nIdx = colBegin + 1; nIdx < colEnd; ++nIdx )
+    {
+        if ( Fixed[rowBegin][nIdx] )
+        {
+            isGameOver = true;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool CTetrisHandler::isFixed(int row, int col)
@@ -946,22 +1015,111 @@ bool CTetrisHandler::print(int row, int col)
 
 void CTetrisHandler::printTODO(int row, int col)
 {
+    lock_guard<mutex> lock(mx);
+
     setCursorPoint(row++, col);
-    cout << "### TODO ###";
     setCursorPoint(row++, col);
-    cout << "* 다음 블록 표시";
+    cout << "↑: Shift";
     setCursorPoint(row++, col);
-    cout << "* 점수 표시";
+    cout << "SPACE: Hard landing";
     setCursorPoint(row++, col);
-    cout << "* 일정 시간마다 속도 Up";
-    setCursorPoint(row++, col);
-    cout << "* ESC 눌러서 나가기";
-    setCursorPoint(row++, col);
-    cout << "* Game Over Line 및 조건";
+    cout << "ESC: Quit";
 
     setCursorPoint(row++, col);
     setCursorPoint(row++, col);
     setCursorPoint(row++, col);
     cout << "// Developed by GroundP.";
 
+}
+
+void CTetrisHandler::printBestScore()
+{
+    lock_guard<mutex> lock(mx);
+
+    setCursorPoint(rowBegin+7, colEnd+3);
+    cout << "Best score : " << bestScore;
+}
+
+void CTetrisHandler::printScore()
+{
+    lock_guard<mutex> lock(mx);
+
+    setCursorPoint(rowBegin+8, colEnd+3);
+    cout << "Score : " << score;
+}
+
+void CTetrisHandler::printLevel(bool bLevelUp)
+{
+    lock_guard<mutex> lock(mx);
+
+    setCursorPoint(rowBegin+9, colEnd+3);
+    cout << "Level : " << level;
+
+    if ( bLevelUp )
+    {
+        setCursorPoint(rowBegin+3, colBegin-5);
+        cout << "Level Up!";
+        setCursorPoint(rowBegin+4, colBegin-5);
+        cout << "Speed Up!";
+
+        Sleep(700);
+        setCursorPoint(rowBegin+3, colBegin-5);
+        cout << "         ";
+        setCursorPoint(rowBegin+4, colBegin-5);
+        cout << "         ";
+    }
+
+}
+
+inline void CTetrisHandler::printDeadLine()
+{
+    lock_guard<mutex> lock(mx);
+        
+    setCursorPoint(rowBegin, colBegin+1);
+    printf("- - - - - - - - - - - -");
+}
+
+void CTetrisHandler::printGameOver()
+{
+    lock_guard<mutex> lock(mx);
+
+    int row = rowBegin;
+    system("cls");
+    setCursorPoint(row, colBegin);
+    printf("* Game Over !");
+    row += 2;
+    setCursorPoint(row, colBegin);
+    if ( isNewRecord )
+    {
+        printf("* Congratulation!!! You broke the best score ! (score: %d)", score);
+        row += 2;
+    }
+    else
+    {
+        printf("* Your score is %d ! (best : %d)", score, bestScore);
+        row += 2;
+    }
+    
+    setCursorPoint(row, colBegin);
+    printf("* Enter the 'space key' to restart.");
+}
+
+void CTetrisHandler::saveScore()
+{
+    if ( score > bestScore )
+    { 
+        isNewRecord = true;
+        FILE* file = fopen("score.txt", "wt");
+
+        if ( file == 0 )
+        {
+            setCursorPoint(0, 0);
+            printf("FILE ERROR: System cannot write best score on \"score.txt\"");
+        }
+        else
+        {
+            fprintf(file, "%d", score);
+            fclose(file);
+        }
+    }
 }
