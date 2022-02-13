@@ -897,7 +897,7 @@ void CTetrisHandler::drawNextBlock()
 
 bool CTetrisHandler::RemoveFix()
 {
-    lock_guard<mutex> lock(mx);
+    unique_lock<mutex> lock(mx);
 
     int combo = 0;
     const int rowSize = static_cast<int>(Blocks.size());
@@ -976,7 +976,9 @@ bool CTetrisHandler::RemoveFix()
             break;
         }
 
+        lock.unlock();
         printScore();
+        lock.lock();
 
         for ( int row = rowEnd-1; row > rowBegin; --row )
             for ( int col = colBegin+1; col < colEnd; ++col )
